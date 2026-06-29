@@ -1,5 +1,3 @@
-//go:build production
-
 package ui
 
 import (

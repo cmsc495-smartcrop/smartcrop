@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"smartcrop/ui"
+
+	"github.com/cmsc495-smartcrop/smartcrop/ui"
 
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"

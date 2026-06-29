@@ -1,4 +1,4 @@
-module smartcrop
+module github.com/cmsc495-smartcrop/smartcrop
 
 go 1.26
 

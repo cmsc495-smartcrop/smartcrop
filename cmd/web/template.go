@@ -6,9 +6,10 @@ import (
 	"io"
 	"io/fs"
 	"path/filepath"
-	"smartcrop/ui"
 	"strings"
 	"time"
+
+	"github.com/cmsc495-smartcrop/smartcrop/ui"
 
 	"github.com/labstack/echo/v5"
 )
