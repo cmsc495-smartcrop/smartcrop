@@ -1,0 +1,16 @@
+{
+  "dependencies": {
+    "@tailwindcss/cli": "^4.3.2",
+    "daisyui": "^5.6.5",
+    "tailwindcss": "^4.3.2"
+  },
+  "scripts": {
+    "css": "npx @tailwindcss/cli  -i ./ui/static/styles/base.css -o ./ui/static/css/output.css --minify",
+    "css:watch": "npx @tailwindcss/cli  -i ./ui/static/styles/base.css -o ./ui/static/css/output.css --watch",
+    "format": "prettier --write \"ui/views/**/*.gohtml\""
+  },
+  "devDependencies": {
+    "prettier": "3.8.2",
+    "prettier-plugin-go-template": "^0.0.15"
+  }
+}

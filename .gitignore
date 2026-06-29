@@ -1,0 +1,9 @@
+.idea
+.env
+.envrc
+node_modules
+tmp
+
+ui/static/css/output.css
+
+deployment/production/secret.yml
