@@ -1,0 +1,22 @@
+{{ define "station_list" }}
+<div class="grid grid-cols-1 gap-3">
+    {{ range .Stations }}
+    <a href="/station/{{ .ID }}" class="card bg-base-100 shadow-sm rounded-2xl hover:shadow-md transition-shadow">
+        <div class="card-body p-5">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-2.5 h-2.5 rounded-full bg-success flex-shrink-0"></div>
+                    <div>
+                        <p class="font-semibold text-base-content text-sm">{{ .Name }}</p>
+                        <p class="text-xs text-base-content/50 mt-0.5">{{ .Location }}</p>
+                    </div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-base-content/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+            </div>
+        </div>
+    </a>
+    {{ end }}
+</div>
+{{ end }}

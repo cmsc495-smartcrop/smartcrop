@@ -1,5 +1,29 @@
 {{ template "layout" . }}
 
 {{ define "content" }}
-    <h1>Home</h1>
+<div class="tabs tabs-border">
+
+    <input type="radio" name="home_tabs" class="tab" aria-label="Station list"
+           hx-get="/?view=list"
+           hx-target="#content-list"
+           hx-swap="innerHTML"
+           hx-push-url="true"
+           hx-trigger="change"
+           {{ if ne .View "map" }}checked{{ end }} />
+    <div id="content-list" class="tab-content p-6">
+        {{ if ne .View "map" }}{{ template "station_list" . }}{{ end }}
+    </div>
+
+    <input type="radio" name="home_tabs" class="tab" aria-label="Map view"
+           hx-get="/?view=map"
+           hx-target="#content-map"
+           hx-swap="innerHTML"
+           hx-push-url="true"
+           hx-trigger="change"
+           {{ if eq .View "map" }}checked{{ end }} />
+    <div id="content-map" class="tab-content p-6">
+        {{ if eq .View "map" }}{{ template "station_map" . }}{{ end }}
+    </div>
+
+</div>
 {{ end }}
