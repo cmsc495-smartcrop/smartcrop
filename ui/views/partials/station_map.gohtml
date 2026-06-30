@@ -1,0 +1,55 @@
+{{ define "station_map" }}
+<div class="card bg-base-100 shadow-sm rounded-2xl mb-4">
+    <div class="card-body p-5">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-base-content">Probe locations</h3>
+            <div class="join">
+                <button class="btn btn-sm join-item btn-active" onclick="setMapScale(this, 4)">Facility</button>
+                <button class="btn btn-sm join-item" onclick="setMapScale(this, 6)">Regional</button>
+                <button class="btn btn-sm join-item" onclick="setMapScale(this, 3)">Global</button>
+            </div>
+        </div>
+        <div id="mapContainer" class="rounded-xl overflow-hidden" style="height: 420px; background:#e5e9e3; position:relative;">
+            <div id="mapPlaceholder" class="absolute inset-0 flex items-center justify-center flex-col gap-2 text-base-content/40">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 map-placeholder-pin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                          d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                <span class="text-sm">Loading map…</span>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    mapboxgl.accessToken = 'PLACE_HOLDER_FOR_NOW';
+    const map = new mapboxgl.Map({
+        container: 'mapContainer',
+        style: 'mapbox://styles/mapbox/light-v11',
+        center: [-95.7129, 37.0902],
+        zoom: 4
+    });
+    map.on('load', function () {
+        const placeholder = document.getElementById('mapPlaceholder');
+        if (placeholder) placeholder.remove();
+    });
+    const stations = [
+        {{ range .Stations }}
+        { id: {{ .ID | printf "%q" }}, name: {{ .Name | printf "%q" }}, lat: {{ .Lat }}, lng: {{ .Lng }} },
+        {{ end }}
+    ];
+    stations.forEach(function (s) {
+        new mapboxgl.Marker({ color: '#4ade80' })
+            .setLngLat([s.lng, s.lat])
+            .setPopup(new mapboxgl.Popup().setText(s.name))
+            .addTo(map);
+    });
+    window.setMapScale = function (btn, zoom) {
+        document.querySelectorAll('.join .join-item').forEach(function (b) { b.classList.remove('btn-active'); });
+        btn.classList.add('btn-active');
+        map.flyTo({ zoom: zoom });
+    };
+})();
+</script>
+{{ end }}
