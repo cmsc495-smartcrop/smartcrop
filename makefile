@@ -47,3 +47,8 @@ db/stop:
 .PHONY: db/migrate
 db/migrate:
 	goose -dir db/migrations postgres "$(DB_DSN)" up
+
+## db/seed: load seed data into the local database
+.PHONY: db/seed
+db/seed:
+	go run ./cmd/seed

@@ -3,7 +3,9 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"html/template"
 	"net/http"
 
 	"github.com/cmsc495-smartcrop/smartcrop/internal/database"
@@ -14,6 +16,7 @@ func registerHandlers(e *echo.Echo, queries *database.Queries) {
 	h := &Handler{queries: queries}
 	e.GET("/", h.HomeView)
 	e.GET("/station/:id", h.StationView)
+	e.GET("/station/:id/readings", h.StationReadingsChart)
 	e.POST("/stations", h.CreateStation)
 }
 
@@ -138,6 +141,70 @@ type StationViewData struct {
 	Lng       float64
 	Location  string
 	Readings  StationReadings
+}
+
+type ReadingsChartData struct {
+	Type       string
+	Label      string
+	Unit       string
+	LabelsJSON template.JS
+	ValuesJSON template.JS
+}
+
+func (h *Handler) StationReadingsChart(c *echo.Context) error {
+	ctx := c.Request().Context()
+	stationID := c.Param("id")
+
+	rawType := c.QueryParam("type")
+	var dbType database.ReadingType
+	var label, unit string
+	switch rawType {
+	case "humidity":
+		dbType = database.ReadingTypeHumidity
+		label, unit = "Humidity", "%"
+	case "soil_moisture":
+		dbType = database.ReadingTypeSoilMoisture
+		label, unit = "Soil Moisture", "%"
+	case "wind_direction":
+		dbType = database.ReadingTypeWindDirection
+		label, unit = "Wind Direction", "°"
+	default:
+		rawType = "temperature"
+		dbType = database.ReadingTypeTemperature
+		label, unit = "Temperature", "°F"
+	}
+
+	readings, err := h.queries.ListReadingsByStationAndType(ctx, database.ListReadingsByStationAndTypeParams{
+		StationID: stationID,
+		Type:      dbType,
+		Limit:     50,
+	})
+	if err != nil {
+		return err
+	}
+
+	// reverse to chronological order (oldest first)
+	for i, j := 0, len(readings)-1; i < j; i, j = i+1, j-1 {
+		readings[i], readings[j] = readings[j], readings[i]
+	}
+
+	labels := make([]string, len(readings))
+	values := make([]float64, len(readings))
+	for i, r := range readings {
+		labels[i] = r.RecordedAt.Time.Format("Jan 2, 15:04")
+		values[i] = r.Value
+	}
+
+	labelsJSON, _ := json.Marshal(labels)
+	valuesJSON, _ := json.Marshal(values)
+
+	return c.Render(200, "partials/readings_chart.gohtml", ReadingsChartData{
+		Type:       rawType,
+		Label:      label,
+		Unit:       unit,
+		LabelsJSON: template.JS(labelsJSON),
+		ValuesJSON: template.JS(valuesJSON),
+	})
 }
 
 func (h *Handler) StationView(c *echo.Context) error {
