@@ -11,10 +11,13 @@ import (
 type Querier interface {
 	CreateReading(ctx context.Context, arg CreateReadingParams) (Reading, error)
 	CreateStation(ctx context.Context, arg CreateStationParams) (Station, error)
-	GetLatestReading(ctx context.Context, stationID string) (Reading, error)
+	GetLatestReadingByType(ctx context.Context, arg GetLatestReadingByTypeParams) (Reading, error)
+	GetLatestReadings(ctx context.Context, stationID string) ([]Reading, error)
 	GetStation(ctx context.Context, id string) (Station, error)
 	ListReadingsByStation(ctx context.Context, arg ListReadingsByStationParams) ([]Reading, error)
+	ListReadingsByStationAndType(ctx context.Context, arg ListReadingsByStationAndTypeParams) ([]Reading, error)
 	ListStations(ctx context.Context) ([]Station, error)
+	UpsertStation(ctx context.Context, arg UpsertStationParams) (Station, error)
 }
 
 var _ Querier = (*Queries)(nil)

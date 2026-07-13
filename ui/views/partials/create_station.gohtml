@@ -1,0 +1,132 @@
+{{ define "create_station" }}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<dialog id="add-station-modal" class="modal">
+<div class="modal-box w-full max-w-lg">
+    <form method="dialog">
+        <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3">✕</button>
+    </form>
+    <h3 class="text-base font-semibold mb-4">Add New Station</h3>
+
+        <form id="create-station-form"
+              hx-post="/stations"
+              hx-target="#station-form-result"
+              hx-swap="innerHTML">
+
+            <div class="form-control mb-4">
+                <label class="label">
+                    <span class="label-text text-xs">Station Name</span>
+                </label>
+                <input type="text" name="name" placeholder="e.g. North Field A"
+                       class="input input-bordered input-sm w-full" required />
+            </div>
+
+            <div class="mb-3">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="label-text text-xs">Pin Location</span>
+                    <button type="button" id="locate-btn"
+                            class="btn btn-xs btn-outline btn-accent gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none"
+                             viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Use my location
+                    </button>
+                </div>
+                <div id="create-station-map" class="rounded-xl overflow-hidden" style="height:280px;"></div>
+                <p id="pin-error" class="text-xs text-error mt-1 hidden">Place a pin on the map before submitting</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 mb-4">
+                <div class="form-control">
+                    <label class="label"><span class="label-text text-xs">Latitude</span></label>
+                    <input type="text" id="lat-display" readonly
+                           class="input input-bordered input-sm w-full opacity-60" placeholder="—" />
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text text-xs">Longitude</span></label>
+                    <input type="text" id="lng-display" readonly
+                           class="input input-bordered input-sm w-full opacity-60" placeholder="—" />
+                </div>
+            </div>
+
+            <input type="hidden" name="latitude"  id="lat-input" />
+            <input type="hidden" name="longitude" id="lng-input" />
+
+            <div id="station-form-result" class="mb-2"></div>
+
+            <button type="submit" class="btn btn-primary btn-sm w-full">Add Station</button>
+        </form>
+</div>
+<form method="dialog" class="modal-backdrop">
+    <button>close</button>
+</form>
+</dialog>
+
+<script>
+(function () {
+    const map = window.createStationMap = L.map('create-station-map').setView([37.0902, -95.7129], 4);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    let marker = null;
+
+    function placePin(lat, lng) {
+        if (marker) {
+            marker.setLatLng([lat, lng]);
+        } else {
+            marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+            marker.on('dragend', function () {
+                const pos = marker.getLatLng();
+                setCoords(pos.lat, pos.lng);
+            });
+        }
+        setCoords(lat, lng);
+    }
+
+    function setCoords(lat, lng) {
+        const latStr = lat.toFixed(6);
+        const lngStr = lng.toFixed(6);
+        document.getElementById('lat-display').value = latStr;
+        document.getElementById('lng-display').value = lngStr;
+        document.getElementById('lat-input').value  = latStr;
+        document.getElementById('lng-input').value  = lngStr;
+        document.getElementById('pin-error').classList.add('hidden');
+    }
+
+    map.on('click', function (e) {
+        placePin(e.latlng.lat, e.latlng.lng);
+    });
+
+    document.getElementById('locate-btn').addEventListener('click', function () {
+        if (!navigator.geolocation) return;
+        const btn = this;
+        btn.classList.add('loading');
+        navigator.geolocation.getCurrentPosition(
+            function (pos) {
+                btn.classList.remove('loading');
+                placePin(pos.coords.latitude, pos.coords.longitude);
+                map.flyTo([pos.coords.latitude, pos.coords.longitude], 13);
+            },
+            function () {
+                btn.classList.remove('loading');
+            }
+        );
+    });
+
+    document.getElementById('create-station-form').addEventListener('submit', function (e) {
+        if (!document.getElementById('lat-input').value) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            document.getElementById('pin-error').classList.remove('hidden');
+        }
+    });
+})();
+</script>
+{{ end }}

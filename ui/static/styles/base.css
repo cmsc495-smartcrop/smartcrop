@@ -1,25 +1,24 @@
 @import "tailwindcss";
 @source "../../views/**/*.gohtml";
 @plugin "daisyui" {
-    themes: smartcrop --default;
 }
 
 @plugin "daisyui/theme" {
     name: "smartcrop";
     default: true;
-    color-scheme: dark;
+    color-scheme: light;
     --color-primary: #ae4b27;
     --color-primary-content: #faf3e8;
-    --color-secondary: #8a3b1e;
+    --color-secondary: #1e2c23;
     --color-secondary-content: #faf3e8;
     --color-accent: #d4845a;
     --color-accent-content: #faf3e8;
     --color-neutral: #3d5a49;
     --color-neutral-content: #faf3e8;
-    --color-base-100: #2d3a2e;
-    --color-base-200: #253029;
-    --color-base-300: #1e2721;
-    --color-base-content: #faf3e8;
+    --color-base-100: #faf3e8;
+    --color-base-200: #f0e5d0;
+    --color-base-300: #e6d8bc;
+    --color-base-content: #1e2c23;
     --color-info: #7e98c8;
     --color-info-content: #1e2721;
     --color-success: #6aab7e;
@@ -34,16 +33,16 @@
 :root {
     --color-primary: #c56239;
     --color-primary-content: #faf3e8;
-    --color-secondary: #8e4729;
+    --color-secondary: #1e2c23;
     --color-secondary-content: #faf3e8;
     --color-accent: #d4845a;
     --color-accent-content: #faf3e8;
     --color-neutral: #3d5a49;
     --color-neutral-content: #faf3e8;
-    --color-base-100: #2d3a2e;
-    --color-base-200: #253029;
-    --color-base-300: #1e2721;
-    --color-base-content: #faf3e8;
+    --color-base-100: #faf3e8;
+    --color-base-200: #f0e5d0;
+    --color-base-300: #e6d8bc;
+    --color-base-content: #1e2c23;
     --color-info: #7e98c8;
     --color-info-content: #1e2721;
     --color-success: #6aab7e;
@@ -52,7 +51,7 @@
     --color-warning-content: #1e2721;
     --color-error: #ff5443;
     --color-error-content: #faf3e8;
-    color-scheme: dark;
+    color-scheme: light;
 }
 
 body {

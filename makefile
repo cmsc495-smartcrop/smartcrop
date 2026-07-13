@@ -26,3 +26,24 @@ serve/dev:
 .PHONY: build/prod
 build/prod:
 	go build -tags production -o bin/smartcrop ./cmd/web
+
+# ==================================================================================== #
+# DATABASE
+# ==================================================================================== #
+
+DB_DSN ?= postgres://smartcrop:smartcrop@localhost:5432/smartcrop?sslmode=disable
+
+## db/start: start the local Postgres container via Podman
+.PHONY: db/start
+db/start:
+	podman kube play infra/postgres.yaml
+
+## db/stop: stop and remove the local Postgres container
+.PHONY: db/stop
+db/stop:
+	podman kube down infra/postgres.yaml
+
+## db/migrate: run all pending goose migrations
+.PHONY: db/migrate
+db/migrate:
+	goose -dir db/migrations postgres "$(DB_DSN)" up
