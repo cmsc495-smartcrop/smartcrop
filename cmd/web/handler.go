@@ -12,7 +12,7 @@ import (
 	"github.com/labstack/echo/v5"
 )
 
-func registerHandlers(e *echo.Echo, queries *database.Queries) {
+func registerHandlers(e *echo.Echo, queries database.Querier) {
 	h := &Handler{queries: queries}
 	e.GET("/", h.HomeView)
 	e.GET("/station/:id", h.StationView)
@@ -27,7 +27,7 @@ func generateStationID() string {
 }
 
 type Handler struct {
-	queries *database.Queries
+	queries database.Querier
 }
 
 type StationListItem struct {
