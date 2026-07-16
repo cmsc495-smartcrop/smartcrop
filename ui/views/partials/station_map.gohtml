@@ -1,0 +1,33 @@
+{{ define "station_map" }}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<div class="card bg-base-100 shadow-sm rounded-2xl mb-4">
+    <div class="card-body p-5">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-base-content">Station locations</h3>
+        </div>
+        <div id="mapContainer" class="rounded-xl overflow-hidden" style="height: 65vh; position:relative;"></div>
+    </div>
+</div>
+<script>
+(function () {
+    const map = L.map('mapContainer').setView([37.0902, -95.7129], 4);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    const stations = [
+        {{ range .Stations }}
+        { id: "{{ .ID }}", name: {{ .Name | printf "%q" }}, lat: {{ .Lat }}, lng: {{ .Lng }} },
+        {{ end }}
+    ];
+
+    stations.forEach(function (s) {
+        L.marker([s.lat, s.lng])
+            .bindPopup('<a href="/station/' + s.id + '">' + s.name + '</a>')
+            .addTo(map);
+    });
+})();
+</script>
+{{ end }}

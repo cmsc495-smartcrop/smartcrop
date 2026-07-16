@@ -1,7 +1,109 @@
 {{ template "layout" . }}
 
 {{ define "content" }}
-    <h1>Station</h1>
-        <p>{{ .StationID }}</p>
-        <p>{{ .Temperature }}</p>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<div class="max-w-4xl mx-auto p-4 flex flex-col gap-4">
+
+    <a href="/" class="btn btn-ghost btn-sm ">← Back to stations</a>
+
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold">{{ .Name }}</h1>
+        <p class="text-sm text-base-content/60">{{ .Location }}</p>
+    </div>
+
+    <div id="station-map" class="w-full h-64 rounded-xl z-0"></div>
+
+    <h2 class="text-lg font-semibold mb-3">Latest Readings</h2>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+        {{ if .Readings.Temperature }}
+        <div class="stat bg-base-200 rounded-box">
+            <div class="stat-title">Temperature</div>
+            <div class="stat-value text-2xl">{{ printf "%.1f" .Readings.Temperature.Value }}°F</div>
+            <div class="stat-desc">{{ .Readings.Temperature.RecordedAt }}</div>
+        </div>
+        {{ else }}
+        <div class="stat bg-base-200 rounded-box opacity-40">
+            <div class="stat-title">Temperature</div>
+            <div class="stat-value text-2xl">—</div>
+            <div class="stat-desc">No data</div>
+        </div>
+        {{ end }}
+
+        {{ if .Readings.Humidity }}
+        <div class="stat bg-base-200 rounded-box">
+            <div class="stat-title">Humidity</div>
+            <div class="stat-value text-2xl">{{ printf "%.1f" .Readings.Humidity.Value }}%</div>
+            <div class="stat-desc">{{ .Readings.Humidity.RecordedAt }}</div>
+        </div>
+        {{ else }}
+        <div class="stat bg-base-200 rounded-box opacity-40">
+            <div class="stat-title">Humidity</div>
+            <div class="stat-value text-2xl">—</div>
+            <div class="stat-desc">No data</div>
+        </div>
+        {{ end }}
+
+        {{ if .Readings.SoilMoisture }}
+        <div class="stat bg-base-200 rounded-box">
+            <div class="stat-title">Soil Moisture</div>
+            <div class="stat-value text-2xl">{{ printf "%.1f" .Readings.SoilMoisture.Value }}%</div>
+            <div class="stat-desc">{{ .Readings.SoilMoisture.RecordedAt }}</div>
+        </div>
+        {{ else }}
+        <div class="stat bg-base-200 rounded-box opacity-40">
+            <div class="stat-title">Soil Moisture</div>
+            <div class="stat-value text-2xl">—</div>
+            <div class="stat-desc">No data</div>
+        </div>
+        {{ end }}
+
+        {{ if .Readings.WindDirection }}
+        <div class="stat bg-base-200 rounded-box">
+            <div class="stat-title">Wind Direction</div>
+            <div class="stat-value text-2xl">{{ printf "%.0f" .Readings.WindDirection.Value }}°</div>
+            <div class="stat-desc">{{ .Readings.WindDirection.RecordedAt }}</div>
+        </div>
+        {{ else }}
+        <div class="stat bg-base-200 rounded-box opacity-40">
+            <div class="stat-title">Wind Direction</div>
+            <div class="stat-value text-2xl">—</div>
+            <div class="stat-desc">No data</div>
+        </div>
+        {{ end }}
+
+    </div>
+
+    <div>
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-lg font-semibold">Historical Data</h2>
+            <select name="type"
+                    class="select select-bordered select-sm"
+                    hx-get="/station/{{ .StationID }}/readings"
+                    hx-trigger="change, load"
+                    hx-target="#chart-container">
+                <option value="temperature">Temperature</option>
+                <option value="humidity">Humidity</option>
+                <option value="soil_moisture">Soil Moisture</option>
+                <option value="wind_direction">Wind Direction</option>
+            </select>
+        </div>
+        <div class="card bg-base-200 p-4 min-h-48">
+            <div id="chart-container"></div>
+        </div>
+    </div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const map = L.map('station-map').setView([{{ .Lat }}, {{ .Lng }}], 13);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    L.marker([{{ .Lat }}, {{ .Lng }}]).addTo(map)
+        .bindPopup({{ .Name | printf "%q" }})
+        .openPopup();
+</script>
 {{ end }}

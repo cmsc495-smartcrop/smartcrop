@@ -12,58 +12,96 @@ import (
 )
 
 const createReading = `-- name: CreateReading :one
-INSERT INTO readings (station_id, temperature, humidity, recorded_at)
+INSERT INTO readings (station_id, type, value, recorded_at)
 VALUES ($1, $2, $3, $4)
-RETURNING id, station_id, temperature, humidity, recorded_at
+RETURNING id, station_id, type, value, recorded_at
 `
 
 type CreateReadingParams struct {
-	StationID   string
-	Temperature pgtype.Float8
-	Humidity    pgtype.Float8
-	RecordedAt  pgtype.Timestamptz
+	StationID  string
+	Type       ReadingType
+	Value      float64
+	RecordedAt pgtype.Timestamptz
 }
 
 func (q *Queries) CreateReading(ctx context.Context, arg CreateReadingParams) (Reading, error) {
 	row := q.db.QueryRow(ctx, createReading,
 		arg.StationID,
-		arg.Temperature,
-		arg.Humidity,
+		arg.Type,
+		arg.Value,
 		arg.RecordedAt,
 	)
 	var i Reading
 	err := row.Scan(
 		&i.ID,
 		&i.StationID,
-		&i.Temperature,
-		&i.Humidity,
+		&i.Type,
+		&i.Value,
 		&i.RecordedAt,
 	)
 	return i, err
 }
 
-const getLatestReading = `-- name: GetLatestReading :one
-SELECT id, station_id, temperature, humidity, recorded_at FROM readings
-WHERE station_id = $1
+const getLatestReadingByType = `-- name: GetLatestReadingByType :one
+SELECT id, station_id, type, value, recorded_at FROM readings
+WHERE station_id = $1 AND type = $2
 ORDER BY recorded_at DESC
 LIMIT 1
 `
 
-func (q *Queries) GetLatestReading(ctx context.Context, stationID string) (Reading, error) {
-	row := q.db.QueryRow(ctx, getLatestReading, stationID)
+type GetLatestReadingByTypeParams struct {
+	StationID string
+	Type      ReadingType
+}
+
+func (q *Queries) GetLatestReadingByType(ctx context.Context, arg GetLatestReadingByTypeParams) (Reading, error) {
+	row := q.db.QueryRow(ctx, getLatestReadingByType, arg.StationID, arg.Type)
 	var i Reading
 	err := row.Scan(
 		&i.ID,
 		&i.StationID,
-		&i.Temperature,
-		&i.Humidity,
+		&i.Type,
+		&i.Value,
 		&i.RecordedAt,
 	)
 	return i, err
 }
 
+const getLatestReadings = `-- name: GetLatestReadings :many
+SELECT DISTINCT ON (type) id, station_id, type, value, recorded_at
+FROM readings
+WHERE station_id = $1
+ORDER BY type, recorded_at DESC
+`
+
+func (q *Queries) GetLatestReadings(ctx context.Context, stationID string) ([]Reading, error) {
+	rows, err := q.db.Query(ctx, getLatestReadings, stationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Reading
+	for rows.Next() {
+		var i Reading
+		if err := rows.Scan(
+			&i.ID,
+			&i.StationID,
+			&i.Type,
+			&i.Value,
+			&i.RecordedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listReadingsByStation = `-- name: ListReadingsByStation :many
-SELECT id, station_id, temperature, humidity, recorded_at FROM readings
+SELECT id, station_id, type, value, recorded_at FROM readings
 WHERE station_id = $1
 ORDER BY recorded_at DESC
 LIMIT $2
@@ -86,8 +124,47 @@ func (q *Queries) ListReadingsByStation(ctx context.Context, arg ListReadingsByS
 		if err := rows.Scan(
 			&i.ID,
 			&i.StationID,
-			&i.Temperature,
-			&i.Humidity,
+			&i.Type,
+			&i.Value,
+			&i.RecordedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReadingsByStationAndType = `-- name: ListReadingsByStationAndType :many
+SELECT id, station_id, type, value, recorded_at FROM readings
+WHERE station_id = $1 AND type = $2
+ORDER BY recorded_at DESC
+LIMIT $3
+`
+
+type ListReadingsByStationAndTypeParams struct {
+	StationID string
+	Type      ReadingType
+	Limit     int32
+}
+
+func (q *Queries) ListReadingsByStationAndType(ctx context.Context, arg ListReadingsByStationAndTypeParams) ([]Reading, error) {
+	rows, err := q.db.Query(ctx, listReadingsByStationAndType, arg.StationID, arg.Type, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Reading
+	for rows.Next() {
+		var i Reading
+		if err := rows.Scan(
+			&i.ID,
+			&i.StationID,
+			&i.Type,
+			&i.Value,
 			&i.RecordedAt,
 		); err != nil {
 			return nil, err

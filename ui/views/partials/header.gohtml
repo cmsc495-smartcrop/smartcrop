@@ -1,2 +1,13 @@
 {{ define "header" }}
+<div class="navbar bg-[#2d3a2e] border-b border-[#253029] px-4">
+    <div class="navbar-start">
+        <a href="/" class="btn btn-ghost text-lg font-bold text-[#faf3e8]">SmartCrop</a>
+    </div>
+    <div class="navbar-end">
+        <button class="btn btn-primary btn-sm"
+                onclick="document.getElementById('add-station-modal').showModal(); setTimeout(function(){ window.createStationMap && window.createStationMap.invalidateSize(); }, 50);">
+            + Add Station
+        </button>
+    </div>
+</div>
 {{ end}}

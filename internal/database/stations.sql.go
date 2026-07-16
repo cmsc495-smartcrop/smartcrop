@@ -7,36 +7,41 @@ package database
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createStation = `-- name: CreateStation :one
-INSERT INTO stations (id, name, location)
-VALUES ($1, $2, $3)
-RETURNING id, name, location, created_at
+INSERT INTO stations (id, name, latitude, longitude)
+VALUES ($1, $2, $3, $4)
+RETURNING id, name, latitude, longitude, created_at
 `
 
 type CreateStationParams struct {
-	ID       string
-	Name     string
-	Location pgtype.Text
+	ID        string
+	Name      string
+	Latitude  float64
+	Longitude float64
 }
 
 func (q *Queries) CreateStation(ctx context.Context, arg CreateStationParams) (Station, error) {
-	row := q.db.QueryRow(ctx, createStation, arg.ID, arg.Name, arg.Location)
+	row := q.db.QueryRow(ctx, createStation,
+		arg.ID,
+		arg.Name,
+		arg.Latitude,
+		arg.Longitude,
+	)
 	var i Station
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.Location,
+		&i.Latitude,
+		&i.Longitude,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getStation = `-- name: GetStation :one
-SELECT id, name, location, created_at FROM stations
+SELECT id, name, latitude, longitude, created_at FROM stations
 WHERE id = $1
 `
 
@@ -46,14 +51,15 @@ func (q *Queries) GetStation(ctx context.Context, id string) (Station, error) {
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.Location,
+		&i.Latitude,
+		&i.Longitude,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const listStations = `-- name: ListStations :many
-SELECT id, name, location, created_at FROM stations
+SELECT id, name, latitude, longitude, created_at FROM stations
 ORDER BY created_at DESC
 `
 
@@ -69,7 +75,8 @@ func (q *Queries) ListStations(ctx context.Context) ([]Station, error) {
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
-			&i.Location,
+			&i.Latitude,
+			&i.Longitude,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -80,4 +87,36 @@ func (q *Queries) ListStations(ctx context.Context) ([]Station, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertStation = `-- name: UpsertStation :one
+INSERT INTO stations (id, name, latitude, longitude)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+RETURNING id, name, latitude, longitude, created_at
+`
+
+type UpsertStationParams struct {
+	ID        string
+	Name      string
+	Latitude  float64
+	Longitude float64
+}
+
+func (q *Queries) UpsertStation(ctx context.Context, arg UpsertStationParams) (Station, error) {
+	row := q.db.QueryRow(ctx, upsertStation,
+		arg.ID,
+		arg.Name,
+		arg.Latitude,
+		arg.Longitude,
+	)
+	var i Station
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Latitude,
+		&i.Longitude,
+		&i.CreatedAt,
+	)
+	return i, err
 }

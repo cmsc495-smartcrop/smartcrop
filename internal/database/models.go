@@ -5,20 +5,68 @@
 package database
 
 import (
+	"database/sql/driver"
+	"fmt"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ReadingType string
+
+const (
+	ReadingTypeSoilMoisture  ReadingType = "soil_moisture"
+	ReadingTypeTemperature   ReadingType = "temperature"
+	ReadingTypeHumidity      ReadingType = "humidity"
+	ReadingTypeWindDirection ReadingType = "wind_direction"
+)
+
+func (e *ReadingType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ReadingType(s)
+	case string:
+		*e = ReadingType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ReadingType: %T", src)
+	}
+	return nil
+}
+
+type NullReadingType struct {
+	ReadingType ReadingType
+	Valid       bool // Valid is true if ReadingType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullReadingType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ReadingType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ReadingType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullReadingType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ReadingType), nil
+}
+
 type Reading struct {
-	ID          int64
-	StationID   string
-	Temperature pgtype.Float8
-	Humidity    pgtype.Float8
-	RecordedAt  pgtype.Timestamptz
+	ID         int64
+	StationID  string
+	Type       ReadingType
+	Value      float64
+	RecordedAt pgtype.Timestamptz
 }
 
 type Station struct {
 	ID        string
 	Name      string
-	Location  pgtype.Text
+	Latitude  float64
+	Longitude float64
 	CreatedAt pgtype.Timestamptz
 }

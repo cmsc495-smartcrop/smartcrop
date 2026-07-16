@@ -1,6 +1,12 @@
 -- name: CreateStation :one
-INSERT INTO stations (id, name, location)
-VALUES ($1, $2, $3)
+INSERT INTO stations (id, name, latitude, longitude)
+VALUES ($1, $2, $3, $4)
+RETURNING *;
+
+-- name: UpsertStation :one
+INSERT INTO stations (id, name, latitude, longitude)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
 RETURNING *;
 
 -- name: GetStation :one

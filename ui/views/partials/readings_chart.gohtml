@@ -1,0 +1,49 @@
+{{ define "readings_chart" }}
+{{ if .LabelsJSON }}
+<div id="readings-chart"></div>
+<script>
+(function () {
+    const el = document.getElementById('readings-chart');
+    if (el._apexChart) {
+        el._apexChart.destroy();
+    }
+    const chart = new ApexCharts(el, {
+        chart: {
+            type: 'area',
+            height: 280,
+            toolbar: { show: false },
+            zoom: { enabled: false },
+            fontFamily: 'inherit',
+        },
+        series: [{
+            name: '{{ .Label }}',
+            data: {{ .ValuesJSON }},
+        }],
+        xaxis: {
+            categories: {{ .LabelsJSON }},
+            labels: { rotate: -30, style: { fontSize: '11px' } },
+            tickAmount: 8,
+        },
+        yaxis: {
+            labels: { formatter: (val) => val.toFixed(1) + '{{ .Unit }}' },
+        },
+        tooltip: {
+            y: { formatter: (val) => val.toFixed(1) + '{{ .Unit }}' },
+        },
+        colors: ['#c56239'],
+        fill: {
+            type: 'gradient',
+            gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.02 },
+        },
+        stroke: { curve: 'smooth', width: 2 },
+        dataLabels: { enabled: false },
+        grid: { borderColor: 'rgba(0,0,0,0.06)' },
+    });
+    chart.render();
+    el._apexChart = chart;
+})();
+</script>
+{{ else }}
+<p class="text-center text-base-content/40 py-12">No historical data for this metric yet.</p>
+{{ end }}
+{{ end }}
