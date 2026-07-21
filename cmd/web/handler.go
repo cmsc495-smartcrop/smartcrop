@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"time"
 
 	"github.com/cmsc495-smartcrop/smartcrop/internal/database"
 	"github.com/labstack/echo/v5"
@@ -151,6 +152,17 @@ type ReadingsChartData struct {
 	ValuesJSON template.JS
 }
 
+func parseDate(s string) (time.Time, bool) {
+	if s == "" {
+		return time.Time{}, false
+	}
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return t, true
+}
+
 func (h *Handler) StationReadingsChart(c *echo.Context) error {
 	ctx := c.Request().Context()
 	stationID := c.Param("id")
@@ -174,16 +186,44 @@ func (h *Handler) StationReadingsChart(c *echo.Context) error {
 		label, unit = "Temperature", "°F"
 	}
 
-	readings, err := h.queries.ListReadingsByStationAndType(ctx, database.ListReadingsByStationAndTypeParams{
-		StationID: stationID,
-		Type:      dbType,
-		Limit:     50,
-	})
-	if err != nil {
-		return err
+	startDate, hasStart := parseDate(c.QueryParam("start"))
+	endDate, hasEnd := parseDate(c.QueryParam("end"))
+
+	var readings []database.Reading
+	var err error
+
+	if hasStart || hasEnd {
+
+		all, fetchErr := h.queries.ListReadingsByStationAndType(ctx, database.ListReadingsByStationAndTypeParams{
+			StationID: stationID,
+			Type:      dbType,
+			Limit:     500,
+		})
+		if fetchErr != nil {
+			return fetchErr
+		}
+		for _, r := range all {
+			t := r.RecordedAt.Time
+			if hasStart && t.Before(startDate) {
+				continue
+			}
+			if hasEnd && t.After(endDate.Add(24*time.Hour)) {
+				continue
+			}
+			readings = append(readings, r)
+		}
+	} else {
+		readings, err = h.queries.ListReadingsByStationAndType(ctx, database.ListReadingsByStationAndTypeParams{
+			StationID: stationID,
+			Type:      dbType,
+			Limit:     500,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
-	// reverse to chronological order (oldest first)
+	// Reverse to chronological order (oldest first)
 	for i, j := 0, len(readings)-1; i < j; i, j = i+1, j-1 {
 		readings[i], readings[j] = readings[j], readings[i]
 	}

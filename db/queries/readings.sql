@@ -26,3 +26,12 @@ SELECT * FROM readings
 WHERE station_id = $1 AND type = $2
 ORDER BY recorded_at DESC
 LIMIT $3;
+
+-- name: ListReadingsByStationAndTypeAndDateRange :many
+SELECT * FROM readings
+WHERE station_id = $1
+  AND type = $2
+  AND ($3::timestamptz IS NULL OR recorded_at >= $3)
+  AND ($4::timestamptz IS NULL OR recorded_at <= $4 + interval '1 day')
+ORDER BY recorded_at DESC
+LIMIT 500;
