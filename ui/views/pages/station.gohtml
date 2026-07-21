@@ -75,19 +75,55 @@
     </div>
 
     <div>
-        <div class="flex items-center justify-between mb-3">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
             <h2 class="text-lg font-semibold">Historical Data</h2>
-            <select name="type"
-                    class="select select-bordered select-sm"
-                    hx-get="/station/{{ .StationID }}/readings"
-                    hx-trigger="change, load"
-                    hx-target="#chart-container">
-                <option value="temperature">Temperature</option>
-                <option value="humidity">Humidity</option>
-                <option value="soil_moisture">Soil Moisture</option>
-                <option value="wind_direction">Wind Direction</option>
-            </select>
+            <div class="flex flex-nowrap items-center gap-2" id="chart-controls">
+
+                <select id="reading-type"
+                        name="type"
+                        class="select select-bordered select-sm"
+                        hx-get="/station/{{ .StationID }}/readings"
+                        hx-trigger="change, load"
+                        hx-target="#chart-container"
+                        hx-include="#chart-controls">
+                    <option value="temperature">Temperature</option>
+                    <option value="humidity">Humidity</option>
+                    <option value="soil_moisture">Soil Moisture</option>
+                    <option value="wind_direction">Wind Direction</option>
+                </select>
+
+                <div class="flex items-center gap-1">
+                    <label class="text-xs text-base-content/50">From</label>
+                    <input type="date"
+                           id="date-start"
+                           name="start"
+                           class="input input-bordered input-sm"
+                           hx-get="/station/{{ .StationID }}/readings"
+                           hx-trigger="change"
+                           hx-target="#chart-container"
+                           hx-include="#chart-controls" />
+                </div>
+
+                <div class="flex items-center gap-1">
+                    <label class="text-xs text-base-content/50">To</label>
+                    <input type="date"
+                           id="date-end"
+                           name="end"
+                           class="input input-bordered input-sm"
+                           hx-get="/station/{{ .StationID }}/readings"
+                           hx-trigger="change"
+                           hx-target="#chart-container"
+                           hx-include="#chart-controls" />
+                </div>
+
+                <button class="btn btn-ghost btn-sm text-xs"
+                        onclick="resetDates()">
+                    Clear dates
+                </button>
+
+            </div>
         </div>
+
         <div class="card bg-base-200 p-4 min-h-48">
             <div id="chart-container"></div>
         </div>
@@ -105,5 +141,22 @@
     L.marker([{{ .Lat }}, {{ .Lng }}]).addTo(map)
         .bindPopup({{ .Name | printf "%q" }})
         .openPopup();
+
+    const today = new Date();
+    const weekAgo = new Date();
+    weekAgo.setDate(today.getDate() - 7);
+
+    const fmt = d => d.toISOString().split('T')[0];
+    document.getElementById('date-start').value = fmt(weekAgo);
+    document.getElementById('date-end').value = fmt(today);
+
+    function resetDates() {
+        const t = new Date();
+        const w = new Date();
+        w.setDate(t.getDate() - 7);
+        document.getElementById('date-start').value = fmt(w);
+        document.getElementById('date-end').value = fmt(t);
+        htmx.trigger(document.getElementById('reading-type'), 'change');
+    }
 </script>
 {{ end }}
