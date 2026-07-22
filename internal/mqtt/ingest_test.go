@@ -48,6 +48,9 @@ func (m *mockQuerier) ListReadingsByStation(_ context.Context, _ database.ListRe
 func (m *mockQuerier) ListReadingsByStationAndType(_ context.Context, _ database.ListReadingsByStationAndTypeParams) ([]database.Reading, error) {
 	return nil, nil
 }
+func (m *mockQuerier) ListReadingsByStationAndTypeAndDateRange(_ context.Context, _ database.ListReadingsByStationAndTypeAndDateRangeParams) ([]database.Reading, error) {
+	return nil, nil
+}
 func (m *mockQuerier) ListStations(_ context.Context) ([]database.Station, error) {
 	return nil, nil
 }

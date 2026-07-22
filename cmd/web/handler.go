@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cmsc495-smartcrop/smartcrop/internal/database"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v5"
 )
 
@@ -150,6 +151,7 @@ type ReadingsChartData struct {
 	Unit       string
 	LabelsJSON template.JS
 	ValuesJSON template.JS
+	HasData    bool
 }
 
 func parseDate(s string) (time.Time, bool) {
@@ -186,31 +188,21 @@ func (h *Handler) StationReadingsChart(c *echo.Context) error {
 		label, unit = "Temperature", "°F"
 	}
 
-	startDate, hasStart := parseDate(c.QueryParam("start"))
-	endDate, hasEnd := parseDate(c.QueryParam("end"))
+	fromDate, hasFrom := parseDate(c.QueryParam("from"))
+	toDate, hasTo := parseDate(c.QueryParam("to"))
 
 	var readings []database.Reading
 	var err error
 
-	if hasStart || hasEnd {
-
-		all, fetchErr := h.queries.ListReadingsByStationAndType(ctx, database.ListReadingsByStationAndTypeParams{
+	if hasFrom && hasTo {
+		readings, err = h.queries.ListReadingsByStationAndTypeAndDateRange(ctx, database.ListReadingsByStationAndTypeAndDateRangeParams{
 			StationID: stationID,
 			Type:      dbType,
-			Limit:     500,
+			StartDate: pgtype.Timestamptz{Time: fromDate, Valid: true},
+			EndDate:   pgtype.Timestamptz{Time: toDate, Valid: true},
 		})
-		if fetchErr != nil {
-			return fetchErr
-		}
-		for _, r := range all {
-			t := r.RecordedAt.Time
-			if hasStart && t.Before(startDate) {
-				continue
-			}
-			if hasEnd && t.After(endDate.Add(24*time.Hour)) {
-				continue
-			}
-			readings = append(readings, r)
+		if err != nil {
+			return err
 		}
 	} else {
 		readings, err = h.queries.ListReadingsByStationAndType(ctx, database.ListReadingsByStationAndTypeParams{
@@ -221,11 +213,10 @@ func (h *Handler) StationReadingsChart(c *echo.Context) error {
 		if err != nil {
 			return err
 		}
-	}
-
-	// Reverse to chronological order (oldest first)
-	for i, j := 0, len(readings)-1; i < j; i, j = i+1, j-1 {
-		readings[i], readings[j] = readings[j], readings[i]
+		// Reverse to chronological order (oldest first)
+		for i, j := 0, len(readings)-1; i < j; i, j = i+1, j-1 {
+			readings[i], readings[j] = readings[j], readings[i]
+		}
 	}
 
 	labels := make([]string, len(readings))
@@ -244,6 +235,7 @@ func (h *Handler) StationReadingsChart(c *echo.Context) error {
 		Unit:       unit,
 		LabelsJSON: template.JS(labelsJSON),
 		ValuesJSON: template.JS(valuesJSON),
+		HasData:    len(readings) > 0,
 	})
 }
 

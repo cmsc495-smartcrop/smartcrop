@@ -31,7 +31,7 @@ LIMIT $3;
 SELECT * FROM readings
 WHERE station_id = $1
   AND type = $2
-  AND ($3::timestamptz IS NULL OR recorded_at >= $3)
-  AND ($4::timestamptz IS NULL OR recorded_at <= $4 + interval '1 day')
-ORDER BY recorded_at DESC
+  AND (sqlc.narg('start_date')::timestamptz IS NULL OR recorded_at >= sqlc.narg('start_date'))
+  AND (sqlc.narg('end_date')::timestamptz IS NULL OR recorded_at <= sqlc.narg('end_date') + interval '1 day')
+ORDER BY recorded_at ASC
 LIMIT 500;

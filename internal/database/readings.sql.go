@@ -176,3 +176,51 @@ func (q *Queries) ListReadingsByStationAndType(ctx context.Context, arg ListRead
 	}
 	return items, nil
 }
+
+const listReadingsByStationAndTypeAndDateRange = `-- name: ListReadingsByStationAndTypeAndDateRange :many
+SELECT id, station_id, type, value, recorded_at FROM readings
+WHERE station_id = $1
+  AND type = $2
+  AND ($3::timestamptz IS NULL OR recorded_at >= $3)
+  AND ($4::timestamptz IS NULL OR recorded_at <= $4 + interval '1 day')
+ORDER BY recorded_at ASC
+LIMIT 500
+`
+
+type ListReadingsByStationAndTypeAndDateRangeParams struct {
+	StationID string
+	Type      ReadingType
+	StartDate pgtype.Timestamptz
+	EndDate   pgtype.Timestamptz
+}
+
+func (q *Queries) ListReadingsByStationAndTypeAndDateRange(ctx context.Context, arg ListReadingsByStationAndTypeAndDateRangeParams) ([]Reading, error) {
+	rows, err := q.db.Query(ctx, listReadingsByStationAndTypeAndDateRange,
+		arg.StationID,
+		arg.Type,
+		arg.StartDate,
+		arg.EndDate,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Reading
+	for rows.Next() {
+		var i Reading
+		if err := rows.Scan(
+			&i.ID,
+			&i.StationID,
+			&i.Type,
+			&i.Value,
+			&i.RecordedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

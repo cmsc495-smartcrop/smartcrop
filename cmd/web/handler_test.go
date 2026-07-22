@@ -39,6 +39,8 @@ type mockQuerier struct {
 	latestReadingsErr error
 	typeReadings      []database.Reading
 	typeReadingsErr   error
+	rangeReadings     []database.Reading
+	rangeReadingsErr  error
 }
 
 func (m *mockQuerier) ListStations(_ context.Context) ([]database.Station, error) {
@@ -55,6 +57,9 @@ func (m *mockQuerier) GetLatestReadings(_ context.Context, _ string) ([]database
 }
 func (m *mockQuerier) ListReadingsByStationAndType(_ context.Context, _ database.ListReadingsByStationAndTypeParams) ([]database.Reading, error) {
 	return m.typeReadings, m.typeReadingsErr
+}
+func (m *mockQuerier) ListReadingsByStationAndTypeAndDateRange(_ context.Context, _ database.ListReadingsByStationAndTypeAndDateRangeParams) ([]database.Reading, error) {
+	return m.rangeReadings, m.rangeReadingsErr
 }
 func (m *mockQuerier) GetLatestReadingByType(_ context.Context, _ database.GetLatestReadingByTypeParams) (database.Reading, error) {
 	return database.Reading{}, nil
@@ -375,6 +380,93 @@ func TestStationReadingsChart_ChronologicalOrder(t *testing.T) {
 	// Oldest value (75) should appear before newest (80).
 	if string(data.ValuesJSON) != "[75,80]" {
 		t.Errorf("ValuesJSON = %s, want [75,80]", data.ValuesJSON)
+	}
+	if !data.HasData {
+		t.Error("HasData = false, want true")
+	}
+}
+
+func TestStationReadingsChart_ValidRange_UsesRangeQuery(t *testing.T) {
+	older := time.Now().Add(-2 * time.Hour)
+	newer := time.Now().Add(-1 * time.Hour)
+
+	rend := &testRenderer{}
+	mock := &mockQuerier{
+		// Range query already returns ascending; handler must not reverse it.
+		rangeReadings: []database.Reading{
+			{Type: database.ReadingTypeTemperature, Value: 70.0, RecordedAt: pgts(older)},
+			{Type: database.ReadingTypeTemperature, Value: 72.0, RecordedAt: pgts(newer)},
+		},
+		// If the handler mistakenly fell back to the default path, this
+		// would be used instead, producing a different (reversed) result.
+		typeReadings: []database.Reading{
+			{Type: database.ReadingTypeTemperature, Value: 99.0, RecordedAt: pgts(newer)},
+		},
+	}
+	e := newTestEcho(rend, mock)
+
+	req := httptest.NewRequest(http.MethodGet, "/station/stn-1/readings?from=2026-01-01&to=2026-01-05", nil)
+	e.ServeHTTP(httptest.NewRecorder(), req)
+
+	data := rend.lastData.(ReadingsChartData)
+	if string(data.ValuesJSON) != "[70,72]" {
+		t.Errorf("ValuesJSON = %s, want [70,72]", data.ValuesJSON)
+	}
+	if !data.HasData {
+		t.Error("HasData = false, want true")
+	}
+}
+
+func TestStationReadingsChart_PartialRangeParams_FallsBackToDefault(t *testing.T) {
+	newer := time.Now()
+	older := time.Now().Add(-30 * time.Minute)
+
+	rend := &testRenderer{}
+	mock := &mockQuerier{
+		typeReadings: []database.Reading{
+			{Type: database.ReadingTypeTemperature, Value: 80.0, RecordedAt: pgts(newer)},
+			{Type: database.ReadingTypeTemperature, Value: 75.0, RecordedAt: pgts(older)},
+		},
+	}
+	e := newTestEcho(rend, mock)
+
+	req := httptest.NewRequest(http.MethodGet, "/station/stn-1/readings?from=2026-01-01", nil)
+	e.ServeHTTP(httptest.NewRecorder(), req)
+
+	data := rend.lastData.(ReadingsChartData)
+	if string(data.ValuesJSON) != "[75,80]" {
+		t.Errorf("ValuesJSON = %s, want [75,80] (default path, reversed to chronological)", data.ValuesJSON)
+	}
+}
+
+func TestStationReadingsChart_InvalidRangeParams_FallsBackToDefault(t *testing.T) {
+	rend := &testRenderer{}
+	mock := &mockQuerier{
+		typeReadings: []database.Reading{
+			{Type: database.ReadingTypeTemperature, Value: 75.0, RecordedAt: pgts(time.Now())},
+		},
+	}
+	e := newTestEcho(rend, mock)
+
+	req := httptest.NewRequest(http.MethodGet, "/station/stn-1/readings?from=2026-13-40&to=2026-01-05", nil)
+	e.ServeHTTP(httptest.NewRecorder(), req)
+
+	data := rend.lastData.(ReadingsChartData)
+	if !data.HasData {
+		t.Error("HasData = false, want true (should have used default path)")
+	}
+}
+
+func TestStationReadingsChart_EmptyResult_HasDataFalse(t *testing.T) {
+	rend := &testRenderer{}
+	e := newTestEcho(rend, &mockQuerier{})
+
+	req := httptest.NewRequest(http.MethodGet, "/station/stn-1/readings", nil)
+	e.ServeHTTP(httptest.NewRecorder(), req)
+
+	data := rend.lastData.(ReadingsChartData)
+	if data.HasData {
+		t.Error("HasData = true, want false for empty result set")
 	}
 }
 

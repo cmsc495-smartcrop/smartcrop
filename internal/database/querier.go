@@ -16,6 +16,7 @@ type Querier interface {
 	GetStation(ctx context.Context, id string) (Station, error)
 	ListReadingsByStation(ctx context.Context, arg ListReadingsByStationParams) ([]Reading, error)
 	ListReadingsByStationAndType(ctx context.Context, arg ListReadingsByStationAndTypeParams) ([]Reading, error)
+	ListReadingsByStationAndTypeAndDateRange(ctx context.Context, arg ListReadingsByStationAndTypeAndDateRangeParams) ([]Reading, error)
 	ListStations(ctx context.Context) ([]Station, error)
 	UpsertStation(ctx context.Context, arg UpsertStationParams) (Station, error)
 }
