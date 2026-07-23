@@ -1,24 +1,35 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/cmsc495-smartcrop/smartcrop/internal/database"
+	"github.com/cmsc495-smartcrop/smartcrop/internal/watering"
+	"github.com/cmsc495-smartcrop/smartcrop/internal/weather"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v5"
 )
 
-func registerHandlers(e *echo.Echo, queries database.Querier) {
-	h := &Handler{queries: queries}
+// Forecaster fetches a location's forecast. Satisfied by *weather.Weather.
+type Forecaster interface {
+	GetForecastForLocation(ctx context.Context, latitude, longitude float64) ([]weather.ForecastPeriod, error)
+}
+
+func registerHandlers(e *echo.Echo, queries database.Querier, forecaster Forecaster) {
+	h := &Handler{queries: queries, forecaster: forecaster}
 	e.GET("/", h.HomeView)
 	e.GET("/station/:id", h.StationView)
 	e.GET("/station/:id/readings", h.StationReadingsChart)
+	e.GET("/station/:id/forecast", h.StationForecast)
+	e.GET("/station/:id/watering", h.StationWatering)
 	e.POST("/stations", h.CreateStation)
 }
 
@@ -29,7 +40,8 @@ func generateStationID() string {
 }
 
 type Handler struct {
-	queries database.Querier
+	queries    database.Querier
+	forecaster Forecaster
 }
 
 type StationListItem struct {
@@ -276,5 +288,112 @@ func (h *Handler) StationView(c *echo.Context) error {
 		Lng:       station.Longitude,
 		Location:  formatLocation(station.Latitude, station.Longitude),
 		Readings:  readings,
+	})
+}
+
+const forecastWindow = 72 * time.Hour
+
+type ForecastPeriodItem struct {
+	Name                       string
+	IsDaytime                  bool
+	Temperature                int
+	TemperatureUnit            string
+	ProbabilityOfPrecipitation int
+}
+
+type ForecastData struct {
+	Available bool
+	Periods   []ForecastPeriodItem
+}
+
+func (h *Handler) StationForecast(c *echo.Context) error {
+	ctx := c.Request().Context()
+	station, err := h.queries.GetStation(ctx, c.Param("id"))
+	if err != nil {
+		return err
+	}
+
+	periods, err := h.forecaster.GetForecastForLocation(ctx, station.Latitude, station.Longitude)
+	if err != nil {
+		slog.Error("fetch forecast", "station", station.ID, "error", err)
+		return c.Render(200, "partials/forecast.gohtml", ForecastData{Available: false})
+	}
+
+	cutoff := time.Now().Add(forecastWindow)
+	items := make([]ForecastPeriodItem, 0, len(periods))
+	for _, p := range periods {
+		if p.StartTime.After(cutoff) {
+			continue
+		}
+		items = append(items, ForecastPeriodItem{
+			Name:                       p.Name,
+			IsDaytime:                  p.IsDaytime,
+			Temperature:                p.Temperature,
+			TemperatureUnit:            p.TemperatureUnit,
+			ProbabilityOfPrecipitation: p.ProbabilityOfPrecipitation,
+		})
+	}
+
+	return c.Render(200, "partials/forecast.gohtml", ForecastData{
+		Available: true,
+		Periods:   items,
+	})
+}
+
+type WateringData struct {
+	Available bool
+	Verdict   string
+	Reason    string
+}
+
+func (h *Handler) StationWatering(c *echo.Context) error {
+	ctx := c.Request().Context()
+	station, err := h.queries.GetStation(ctx, c.Param("id"))
+	if err != nil {
+		return err
+	}
+
+	latestReadings, err := h.queries.GetLatestReadings(ctx, station.ID)
+	if err != nil {
+		return err
+	}
+
+	var soilMoisture, temperature *watering.Reading
+	for _, r := range latestReadings {
+		switch r.Type {
+		case database.ReadingTypeSoilMoisture:
+			soilMoisture = &watering.Reading{Value: r.Value, RecordedAt: r.RecordedAt.Time}
+		case database.ReadingTypeTemperature:
+			temperature = &watering.Reading{Value: r.Value, RecordedAt: r.RecordedAt.Time}
+		}
+	}
+
+	var forecastPeriods []watering.ForecastPeriod
+	periods, err := h.forecaster.GetForecastForLocation(ctx, station.Latitude, station.Longitude)
+	if err != nil {
+		slog.Error("fetch forecast for watering recommendation", "station", station.ID, "error", err)
+		// Graceful degrade: still produce a recommendation without the rain
+		// override factor, rather than hiding the card entirely.
+	} else {
+		forecastPeriods = make([]watering.ForecastPeriod, len(periods))
+		for i, p := range periods {
+			forecastPeriods[i] = watering.ForecastPeriod{
+				StartTime:                  p.StartTime,
+				ProbabilityOfPrecipitation: p.ProbabilityOfPrecipitation,
+			}
+		}
+	}
+
+	rec := watering.Recommend(watering.Input{
+		SoilMoisture: soilMoisture,
+		Temperature:  temperature,
+		Forecast:     forecastPeriods,
+		Now:          time.Now(),
+	})
+
+	return c.Render(200, "partials/watering.gohtml", WateringData{
+		Available: true,
+		Verdict:   string(rec.Verdict),
+		Reason:    rec.Reason,
 	})
 }

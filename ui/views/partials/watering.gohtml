@@ -1,0 +1,17 @@
+{{ define "watering" }}
+{{ if not .Available }}
+<p class="text-center text-base-content/40 py-8">Watering recommendation unavailable right now.</p>
+{{ else if eq .Verdict "water" }}
+<div class="alert alert-warning">
+    <span>💧 <strong>Water this station.</strong> {{ .Reason }}</span>
+</div>
+{{ else if eq .Verdict "do_not_water" }}
+<div class="alert alert-success">
+    <span>✅ <strong>No watering needed.</strong> {{ .Reason }}</span>
+</div>
+{{ else }}
+<div class="alert alert-info">
+    <span>❔ <strong>Not enough data.</strong> {{ .Reason }}</span>
+</div>
+{{ end }}
+{{ end }}

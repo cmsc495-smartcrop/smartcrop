@@ -75,6 +75,30 @@
     </div>
 
     <div>
+        <h2 class="text-lg font-semibold mb-3">Watering Recommendation</h2>
+        <div class="card bg-base-200 p-4 min-h-24">
+            <div id="watering-container"
+                 hx-get="/station/{{ .StationID }}/watering"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <span class="loading loading-spinner loading-sm"></span>
+            </div>
+        </div>
+    </div>
+
+    <div>
+        <h2 class="text-lg font-semibold mb-3">72-Hour Forecast</h2>
+        <div class="card bg-base-200 p-4 min-h-24">
+            <div id="forecast-container"
+                 hx-get="/station/{{ .StationID }}/forecast"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <span class="loading loading-spinner loading-sm"></span>
+            </div>
+        </div>
+    </div>
+
+    <div>
         <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
             <h2 class="text-lg font-semibold">Historical Data</h2>
             <div class="flex flex-nowrap items-center gap-2" id="chart-controls">

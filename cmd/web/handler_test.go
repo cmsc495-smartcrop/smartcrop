@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cmsc495-smartcrop/smartcrop/internal/database"
+	"github.com/cmsc495-smartcrop/smartcrop/internal/weather"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v5"
 )
@@ -78,10 +80,24 @@ func pgts(t time.Time) pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: t, Valid: true}
 }
 
+// fakeForecaster is a controllable in-memory implementation of Forecaster.
+type fakeForecaster struct {
+	periods []weather.ForecastPeriod
+	err     error
+}
+
+func (f *fakeForecaster) GetForecastForLocation(_ context.Context, _, _ float64) ([]weather.ForecastPeriod, error) {
+	return f.periods, f.err
+}
+
 func newTestEcho(rend *testRenderer, q database.Querier) *echo.Echo {
+	return newTestEchoWithForecaster(rend, q, &fakeForecaster{})
+}
+
+func newTestEchoWithForecaster(rend *testRenderer, q database.Querier, f Forecaster) *echo.Echo {
 	e := echo.New()
 	e.Renderer = rend
-	registerHandlers(e, q)
+	registerHandlers(e, q, f)
 	return e
 }
 
@@ -286,6 +302,199 @@ func TestStationView_NoReadings(t *testing.T) {
 	r := rend.lastData.(StationViewData).Readings
 	if r.Temperature != nil || r.Humidity != nil || r.SoilMoisture != nil || r.WindDirection != nil {
 		t.Error("expected all readings to be nil")
+	}
+}
+
+// --- StationForecast ---
+
+func TestStationForecast_FiltersToNext72Hours(t *testing.T) {
+	rend := &testRenderer{}
+	now := time.Now()
+	mock := &mockQuerier{station: database.Station{ID: "stn-1"}}
+	fc := &fakeForecaster{periods: []weather.ForecastPeriod{
+		{Name: "Today", StartTime: now.Add(1 * time.Hour), Temperature: 70, TemperatureUnit: "F", ShortForecast: "Sunny"},
+		{Name: "Tonight", StartTime: now.Add(13 * time.Hour), Temperature: 55, TemperatureUnit: "F", ShortForecast: "Clear"},
+		{Name: "Day 4", StartTime: now.Add(96 * time.Hour), Temperature: 68, TemperatureUnit: "F", ShortForecast: "Cloudy"},
+	}}
+	e := newTestEchoWithForecaster(rend, mock, fc)
+
+	req := httptest.NewRequest(http.MethodGet, "/station/stn-1/forecast", nil)
+	e.ServeHTTP(httptest.NewRecorder(), req)
+
+	data := rend.lastData.(ForecastData)
+	if !data.Available {
+		t.Fatal("expected Available = true")
+	}
+	if len(data.Periods) != 2 {
+		t.Fatalf("len(Periods) = %d, want 2", len(data.Periods))
+	}
+	if data.Periods[0].Name != "Today" || data.Periods[1].Name != "Tonight" {
+		t.Errorf("Periods = %+v, want Today, Tonight (Day 4 beyond 72h excluded)", data.Periods)
+	}
+}
+
+func TestStationForecast_ForecasterError_RendersUnavailable(t *testing.T) {
+	rend := &testRenderer{}
+	mock := &mockQuerier{station: database.Station{ID: "stn-1"}}
+	fc := &fakeForecaster{err: errors.New("weather.gov unreachable")}
+	e := newTestEchoWithForecaster(rend, mock, fc)
+
+	req := httptest.NewRequest(http.MethodGet, "/station/stn-1/forecast", nil)
+	e.ServeHTTP(httptest.NewRecorder(), req)
+
+	data := rend.lastData.(ForecastData)
+	if data.Available {
+		t.Error("expected Available = false")
+	}
+}
+
+// --- StationWatering ---
+
+func TestStationWatering_DrySoilNoRain_RecommendsWater(t *testing.T) {
+	rend := &testRenderer{}
+	now := time.Now()
+	mock := &mockQuerier{
+		station: database.Station{ID: "stn-1"},
+		latestReadings: []database.Reading{
+			{Type: database.ReadingTypeSoilMoisture, Value: 20, RecordedAt: pgts(now)},
+		},
+	}
+	fc := &fakeForecaster{periods: []weather.ForecastPeriod{
+		{Name: "Today", StartTime: now.Add(2 * time.Hour), ProbabilityOfPrecipitation: 5},
+	}}
+	e := newTestEchoWithForecaster(rend, mock, fc)
+
+	req := httptest.NewRequest(http.MethodGet, "/station/stn-1/watering", nil)
+	e.ServeHTTP(httptest.NewRecorder(), req)
+
+	data := rend.lastData.(WateringData)
+	if !data.Available {
+		t.Fatal("expected Available = true")
+	}
+	if data.Verdict != "water" {
+		t.Errorf("Verdict = %q, want water", data.Verdict)
+	}
+}
+
+func TestStationWatering_DrySoilWithRain_RecommendsHold(t *testing.T) {
+	rend := &testRenderer{}
+	now := time.Now()
+	mock := &mockQuerier{
+		station: database.Station{ID: "stn-1"},
+		latestReadings: []database.Reading{
+			{Type: database.ReadingTypeSoilMoisture, Value: 20, RecordedAt: pgts(now)},
+		},
+	}
+	fc := &fakeForecaster{periods: []weather.ForecastPeriod{
+		{Name: "Today", StartTime: now.Add(2 * time.Hour), ProbabilityOfPrecipitation: 70},
+	}}
+	e := newTestEchoWithForecaster(rend, mock, fc)
+
+	req := httptest.NewRequest(http.MethodGet, "/station/stn-1/watering", nil)
+	e.ServeHTTP(httptest.NewRecorder(), req)
+
+	data := rend.lastData.(WateringData)
+	if data.Verdict != "do_not_water" {
+		t.Errorf("Verdict = %q, want do_not_water", data.Verdict)
+	}
+	if !strings.Contains(data.Reason, "rain") {
+		t.Errorf("Reason = %q, want it to mention rain", data.Reason)
+	}
+}
+
+func TestStationWatering_AdequateSoil_NoWatering(t *testing.T) {
+	rend := &testRenderer{}
+	now := time.Now()
+	mock := &mockQuerier{
+		station: database.Station{ID: "stn-1"},
+		latestReadings: []database.Reading{
+			{Type: database.ReadingTypeSoilMoisture, Value: 65, RecordedAt: pgts(now)},
+		},
+	}
+	e := newTestEcho(rend, mock)
+
+	req := httptest.NewRequest(http.MethodGet, "/station/stn-1/watering", nil)
+	e.ServeHTTP(httptest.NewRecorder(), req)
+
+	data := rend.lastData.(WateringData)
+	if data.Verdict != "do_not_water" {
+		t.Errorf("Verdict = %q, want do_not_water", data.Verdict)
+	}
+}
+
+func TestStationWatering_BorderlineHot_RecommendsWater(t *testing.T) {
+	rend := &testRenderer{}
+	now := time.Now()
+	mock := &mockQuerier{
+		station: database.Station{ID: "stn-1"},
+		latestReadings: []database.Reading{
+			{Type: database.ReadingTypeSoilMoisture, Value: 40, RecordedAt: pgts(now)},
+			{Type: database.ReadingTypeTemperature, Value: 92, RecordedAt: pgts(now)},
+		},
+	}
+	e := newTestEcho(rend, mock)
+
+	req := httptest.NewRequest(http.MethodGet, "/station/stn-1/watering", nil)
+	e.ServeHTTP(httptest.NewRecorder(), req)
+
+	data := rend.lastData.(WateringData)
+	if data.Verdict != "water" {
+		t.Errorf("Verdict = %q, want water", data.Verdict)
+	}
+}
+
+func TestStationWatering_MissingSoilMoisture_InsufficientData(t *testing.T) {
+	rend := &testRenderer{}
+	mock := &mockQuerier{station: database.Station{ID: "stn-1"}}
+	e := newTestEcho(rend, mock)
+
+	req := httptest.NewRequest(http.MethodGet, "/station/stn-1/watering", nil)
+	e.ServeHTTP(httptest.NewRecorder(), req)
+
+	data := rend.lastData.(WateringData)
+	if data.Verdict != "insufficient_data" {
+		t.Errorf("Verdict = %q, want insufficient_data", data.Verdict)
+	}
+}
+
+func TestStationWatering_ForecasterError_StillProducesRecommendation(t *testing.T) {
+	rend := &testRenderer{}
+	now := time.Now()
+	mock := &mockQuerier{
+		station: database.Station{ID: "stn-1"},
+		latestReadings: []database.Reading{
+			{Type: database.ReadingTypeSoilMoisture, Value: 20, RecordedAt: pgts(now)},
+		},
+	}
+	fc := &fakeForecaster{err: errors.New("weather.gov unreachable")}
+	e := newTestEchoWithForecaster(rend, mock, fc)
+
+	req := httptest.NewRequest(http.MethodGet, "/station/stn-1/watering", nil)
+	e.ServeHTTP(httptest.NewRecorder(), req)
+
+	data := rend.lastData.(WateringData)
+	if !data.Available {
+		t.Fatal("expected Available = true even when forecaster errors")
+	}
+	if data.Verdict != "water" {
+		t.Errorf("Verdict = %q, want water", data.Verdict)
+	}
+	if !strings.Contains(data.Reason, "Forecast data wasn't available") {
+		t.Errorf("Reason = %q, want it to mention forecast unavailability", data.Reason)
+	}
+}
+
+func TestStationWatering_StationLookupError_ReturnsError(t *testing.T) {
+	rend := &testRenderer{}
+	mock := &mockQuerier{getStationErr: errors.New("not found")}
+	e := newTestEcho(rend, mock)
+
+	req := httptest.NewRequest(http.MethodGet, "/station/stn-1/watering", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusOK {
+		t.Errorf("status = %d, want a non-200 error status", rec.Code)
 	}
 }
 

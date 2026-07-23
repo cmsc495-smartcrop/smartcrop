@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/cmsc495-smartcrop/smartcrop/internal/database"
+	"github.com/cmsc495-smartcrop/smartcrop/internal/weather"
 	"github.com/cmsc495-smartcrop/smartcrop/ui"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v5"
@@ -30,6 +31,11 @@ func Start() error {
 
 	queries := database.New(pool)
 
+	forecaster, err := weather.NewClient()
+	if err != nil {
+		return fmt.Errorf("weather client: %w", err)
+	}
+
 	e := echo.New()
 
 	tmpl, err := NewTemplateCache()
@@ -44,7 +50,7 @@ func Start() error {
 	e.Use(middleware.Gzip())
 	e.Use(middleware.RequestLogger())
 
-	registerHandlers(e, queries)
+	registerHandlers(e, queries, forecaster)
 
 	return e.Start(":8080")
 }
